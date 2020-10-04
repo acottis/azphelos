@@ -1,0 +1,7 @@
+
+[build]
+target = "x86_64-unknown-uefi"
+# rustflags = "C", 
+
+[unstable]
+build-std = ["core", "alloc"]
