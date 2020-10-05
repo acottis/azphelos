@@ -12,6 +12,7 @@ pub fn get_memory_map() -> usize {
     let st = EFI_SYSTEM_TABLE.load(Ordering::SeqCst);
     assert!(!st.is_null(), "System table is null");
 
+
     // Array of Memory Descriptors and 64 is an arbitary number I picked, less and it throws buffer to small error
     let mut memory_map = [EfiMemoryDescriptor::default(); 64];
 
@@ -32,24 +33,18 @@ pub fn get_memory_map() -> usize {
 
         assert!(
             status == EfiStatus::Success,
-            "Failed to get memory_map: {:?}",
+            "Failed to get memory_map: {:x?}",
             status
         );
 
-        for entry in memory_map.iter(){
-            let typ: EfiMemoryType = entry.typ.into();
-            print!("{:?}, {}, {}, {}\n", typ, entry.phyiscal_start, entry.virtual_start, entry.number_of_pages);
-            //print!("{:?}\n", &entry);
-        }
-
     }
+    print!("Size: {}, mdesc_size:{} bytes\n", size, mdesc_size);
 
-    //print!("\n{:?}\n", memory_map);
-
-    // print!(
-    //     "\nSize: {}bytes, MapKey is: {}, Descriptor Size: {}bytes, Descriptor Version: {}",
-    //     size, key, mdesc_size, mdesc_version
-    // );
+    print!("Phsyical Start | Virtual Start | Pages | Attribute | Type\n");
+    for entry in memory_map.iter() {
+        let typ: EfiMemoryType = entry.typ.into();
+        print!("{:8x}, {:8x}, {:5x}, {:16x}, {:?},\n",  entry.phyiscal_start, entry.virtual_start, entry.number_of_pages, entry.attribute, typ);
+    }
 
     key
 }
@@ -59,7 +54,7 @@ pub fn exit_boot(handle: EfiHandle, key: usize) {
 
     assert!(!st.is_null(), "System table is null");
 
-    print!("\nKey: {:?}, Handle: {:x?}", key, handle);
+    //print!("\nKey: {:?}, Handle: {:x?}", key, handle);
     unsafe {
         let status = ((*(*st).boot_services).exit_boot_services)(handle, key);
 
@@ -73,14 +68,18 @@ pub fn output_string(string: &str) -> EfiStatus {
     let st = EFI_SYSTEM_TABLE.load(Ordering::SeqCst);
     assert!(!st.is_null(), "System table is null");
 
-    let mut str_buf = [0u16; 32];
+    let mut str_buf = [0u16; 64];
     let mut i = 0;
 
     for chr in string.encode_utf16() {
-        if i == str_buf.len() {
+        if i == str_buf.len() - 2 {
             unsafe { (*(*st).console_out).output_string(str_buf.as_ptr()) };
-            str_buf = [0u16; 32];
+            str_buf = [0u16; 64];
             i = 0;
+        }
+        if chr == b'\n'.into() {
+            str_buf[i] = b'\r'.into();
+            i += 1;
         }
         str_buf[i] = chr;
         i += 1;
@@ -104,11 +103,6 @@ pub fn clear_screen() {
 #[derive(Debug)]
 pub struct EfiHandle(usize);
 
-struct EfiInputKey {
-    _scan_code: u16,
-    _unicode_char: u16,
-}
-
 #[repr(C)]
 struct EfiTableHeader {
     signature: u64,
@@ -116,16 +110,6 @@ struct EfiTableHeader {
     header_size: u32,
     crc32: u32,
     _reserved: u32,
-}
-
-#[repr(C)]
-struct EfiSimpleTextInputProtocol {
-    reset: unsafe fn(this: &EfiSimpleTextInputProtocol, extended_verification: bool) -> EfiStatus,
-
-    read_keystroke:
-        unsafe fn(this: &EfiSimpleTextInputProtocol, key: &mut EfiInputKey) -> EfiStatus,
-
-    wait_for_key: usize,
 }
 
 #[repr(C)]
@@ -155,8 +139,7 @@ impl EfiSimpleTextOutputProtocol {
 #[repr(C)]
 pub struct EfiSimpleTextErrorProtocol {}
 
-
-#[derive(Clone, Copy, Default, Debug)]
+#[derive(Debug, Copy, Clone, Default)]
 #[repr(C)]
 pub struct EfiMemoryDescriptor {
     typ: u32,
@@ -164,6 +147,7 @@ pub struct EfiMemoryDescriptor {
     virtual_start: u64,
     number_of_pages: u64,
     attribute: u64,
+    _padding: u32, // Why do I need this for? It breaks without
 }
 
 #[repr(C)]
@@ -175,7 +159,7 @@ pub struct EfiBootServices {
     // Memory Services
     allocate_pages: usize,
     free_pages: usize,
-    get_memory_map: unsafe fn(
+    get_memory_map: unsafe extern fn(
         memory_map_size: &mut usize,
         memory_map: *mut EfiMemoryDescriptor,
         map_key: &mut usize,
@@ -216,7 +200,7 @@ pub struct EfiSystemTable {
     firmware_vendor: *const u16,
     firmware_revision: u32,
     console_in_handle: EfiHandle,
-    console_in: *const EfiSimpleTextInputProtocol,
+    console_in: usize,
     console_out_handle: EfiHandle,
     console_out: *const EfiSimpleTextOutputProtocol,
     console_err_handle: EfiHandle,
@@ -225,54 +209,56 @@ pub struct EfiSystemTable {
     boot_services: *const EfiBootServices,
 }
 
-
 // MEMORY TPYE STUFF
 
-#[derive(Clone, Copy, Debug)]
-#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+#[repr(u32)]
 pub enum EfiMemoryType {
-    ReservedMemoryType,  
-    LoaderCode,  
-    LoaderData,  
-    BootServicesCode,  
-    BootServicesData,  
-    RuntimeServicesCode,  
-    RuntimeServicesData,  
-    ConventionalMemory,  
-    UnusableMemory,  
-    ACPIReclaimMemory,  
-    ACPIMemoryNVS,  
-    MemoryMappedIO,  
-    MemoryMappedIOPortSpace,  
-    PalCode,  
-    PersistentMemory,  
+    ReservedMemoryType,
+    LoaderCode,
+    LoaderData,
+    BootServicesCode,
+    BootServicesData,
+    RuntimeServicesCode,
+    RuntimeServicesData,
+    ConventionalMemory,
+    UnusableMemory,
+    ACPIReclaimMemory,
+    ACPIMemoryNVS,
+    MemoryMappedIO,
+    MemoryMappedIOPortSpace,
+    PalCode,
+    PersistentMemory,
     MaxMemoryType,
-    Invalid
+    Invalid,
 }
 
-impl From<u32> for EfiMemoryType{
+impl Default for EfiMemoryType{
+    fn default() -> Self { EfiMemoryType::Invalid }
+}
+
+impl From<u32> for EfiMemoryType {
     fn from(val: u32) -> Self {
         match val {
-        0 => EfiMemoryType::ReservedMemoryType,  
-        1 => EfiMemoryType::LoaderCode,  
-        2 => EfiMemoryType::LoaderData,  
-        3 => EfiMemoryType::BootServicesCode,  
-        4 => EfiMemoryType::BootServicesData,  
-        5 => EfiMemoryType::RuntimeServicesCode,  
-        6 => EfiMemoryType::RuntimeServicesData,  
-        7 => EfiMemoryType::ConventionalMemory,  
-        8 => EfiMemoryType::UnusableMemory,  
-        9 => EfiMemoryType::ACPIReclaimMemory,  
-        10 => EfiMemoryType::ACPIMemoryNVS,  
-        11 => EfiMemoryType::MemoryMappedIO,  
-        12 => EfiMemoryType::MemoryMappedIOPortSpace,  
-        13 => EfiMemoryType::PalCode,  
-        14 => EfiMemoryType::PersistentMemory,  
-        15 => EfiMemoryType::MaxMemoryType,
-        _ => EfiMemoryType::Invalid
+            0 => EfiMemoryType::ReservedMemoryType,
+            1 => EfiMemoryType::LoaderCode,
+            2 => EfiMemoryType::LoaderData,
+            3 => EfiMemoryType::BootServicesCode,
+            4 => EfiMemoryType::BootServicesData,
+            5 => EfiMemoryType::RuntimeServicesCode,
+            6 => EfiMemoryType::RuntimeServicesData,
+            7 => EfiMemoryType::ConventionalMemory,
+            8 => EfiMemoryType::UnusableMemory,
+            9 => EfiMemoryType::ACPIReclaimMemory,
+            10 => EfiMemoryType::ACPIMemoryNVS,
+            11 => EfiMemoryType::MemoryMappedIO,
+            12 => EfiMemoryType::MemoryMappedIOPortSpace,
+            13 => EfiMemoryType::PalCode,
+            14 => EfiMemoryType::PersistentMemory,
+            15 => EfiMemoryType::MaxMemoryType,
+            _ => EfiMemoryType::Invalid,
+        }
     }
-}
-
 }
 
 // STATUS CODE STUFF---------------

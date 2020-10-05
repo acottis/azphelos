@@ -1,11 +1,15 @@
-default: run
+default: debug
 
-
-run: cargo
+debug:
+	cargo build
 	qemu-system-x86_64 -bios /usr/share/OVMF/OVMF_CODE.fd 	\
-	-enable-kvm -nographic -m 1024                    \
+	-enable-kvm -nographic -m 2048                    \
     -device e1000,netdev=n0 	                            \
 	-netdev user,bootfile=azphelos.efi,tftp=target/x86_64-unknown-uefi/debug,id=n0
 
-cargo: 
-	cargo build
+run:
+	cargo build --release
+	qemu-system-x86_64 -bios /usr/share/OVMF/OVMF_CODE.fd 	\
+	-enable-kvm -nographic -m 2048                    \
+    -device e1000,netdev=n0 	                            \
+	-netdev user,bootfile=azphelos.efi,tftp=target/x86_64-unknown-uefi/release,id=n0

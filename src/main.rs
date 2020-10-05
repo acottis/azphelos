@@ -20,7 +20,7 @@ fn efi_main(image_handle: EfiHandle, system_table: *mut EfiSystemTable){
 
     unsafe { efi::register_efi_system_table(system_table); }
 
-    // efi::clear_screen();
+    efi::clear_screen();
 
 
     let key: usize = efi::get_memory_map();
