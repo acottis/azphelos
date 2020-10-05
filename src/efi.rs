@@ -12,7 +12,6 @@ pub fn get_memory_map() -> usize {
     let st = EFI_SYSTEM_TABLE.load(Ordering::SeqCst);
     assert!(!st.is_null(), "System table is null");
 
-
     // Array of Memory Descriptors and 64 is an arbitary number I picked, less and it throws buffer to small error
     let mut memory_map = [EfiMemoryDescriptor::default(); 64];
 
@@ -50,7 +49,7 @@ pub fn get_memory_map() -> usize {
             continue;
         }
 
-        print!("{:8x} {:8} {:16b} {:?}\n",  entry.phyiscal_start, entry.number_of_pages *4096, entry.attribute, typ);
+        print!("{:8x} {:8} {:16x} {:?}\n",  entry.phyiscal_start, entry.number_of_pages *4096, entry.attribute, typ);
     
         if typ.avail_post_exit_boot_services() == true {
             memory += entry.number_of_pages * 4096;

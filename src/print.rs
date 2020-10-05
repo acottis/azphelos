@@ -13,8 +13,8 @@ impl Write for ScreenWriter {
 #[macro_export]
 macro_rules! print {
     ($($arg:tt)*) => {
-        let _ = <$crate::print::ScreenWriter as core::fmt::Write>::write_fmt(
+        <$crate::print::ScreenWriter as core::fmt::Write>::write_fmt(
             &mut $crate::print::ScreenWriter,
-            core::format_args!($($arg)*));
+            core::format_args!($($arg)*)).unwrap();
     }        
 }
