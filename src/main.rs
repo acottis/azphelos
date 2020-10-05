@@ -29,5 +29,5 @@ fn efi_main(image_handle: EfiHandle, system_table: *mut EfiSystemTable){
     //efi::clear_screen();
 
 
-    loop {}
+    //loop {}
 }

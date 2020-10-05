@@ -40,12 +40,24 @@ pub fn get_memory_map() -> usize {
     }
     print!("Size: {}, mdesc_size:{} bytes\n", size, mdesc_size);
 
-    print!("Phsyical Start | Virtual Start | Pages | Attribute | Type\n");
+    let mut memory: u64 = 0;
+    print!("Phsyical Start | Pages | Attribute | Type\n");
     for entry in memory_map.iter() {
         let typ: EfiMemoryType = entry.typ.into();
-        print!("{:8x}, {:8x}, {:5x}, {:16x}, {:?},\n",  entry.phyiscal_start, entry.virtual_start, entry.number_of_pages, entry.attribute, typ);
+
+        // Skip Empty Mdescs
+        if typ == EfiMemoryType::Invalid{
+            continue;
+        }
+
+        print!("{:8x} {:8} {:16b} {:?}\n",  entry.phyiscal_start, entry.number_of_pages *4096, entry.attribute, typ);
+    
+        if typ.avail_post_exit_boot_services() == true {
+            memory += entry.number_of_pages * 4096;
+        }
     }
 
+    print!("Memory available for allocation {}MB", memory/1024/1024);
     key
 }
 
@@ -142,7 +154,7 @@ pub struct EfiSimpleTextErrorProtocol {}
 #[derive(Debug, Copy, Clone, Default)]
 #[repr(C)]
 pub struct EfiMemoryDescriptor {
-    typ: u32,
+    typ: EfiMemoryType,
     phyiscal_start: u64,
     virtual_start: u64,
     number_of_pages: u64,
@@ -211,7 +223,7 @@ pub struct EfiSystemTable {
 
 // MEMORY TPYE STUFF
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, PartialEq)]
 #[repr(u32)]
 pub enum EfiMemoryType {
     ReservedMemoryType,
@@ -233,10 +245,27 @@ pub enum EfiMemoryType {
     Invalid,
 }
 
+// Function that deciedes is memory is available for us to use
+// Maybe add LoaderCode and LoaderData in eventually
+// and add a second stage
+impl EfiMemoryType {
+    fn avail_post_exit_boot_services(&self) -> bool {
+        match self {
+            EfiMemoryType::BootServicesCode     |
+            EfiMemoryType::BootServicesData     |
+            EfiMemoryType::ConventionalMemory   |
+            EfiMemoryType::PersistentMemory     => true,
+            _ => false,
+        }
+    }
+}
+
+// This allows me to use Deafult with type EfiMemoryType
 impl Default for EfiMemoryType{
     fn default() -> Self { EfiMemoryType::Invalid }
 }
 
+// Converts a u32 into a EfiMemoryType
 impl From<u32> for EfiMemoryType {
     fn from(val: u32) -> Self {
         match val {
